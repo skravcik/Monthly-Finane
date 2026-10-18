@@ -122,32 +122,48 @@
     <!-- View Tabs (Dashboard vs Analytics) -->
     <div id="tabDashboard" class="space-y-4">
 
+      <!-- Main Overview Chart (Pie / Doughnut) -->
+      <div class="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200/80">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="pie-chart" class="w-4 h-4 text-indigo-600"></i>
+            תמונה כללית - התפלגות הוצאות
+          </h3>
+        </div>
+
+        <div id="chartContainer" class="relative h-48 w-full flex justify-center items-center">
+          <canvas id="expensesChartHome"></canvas>
+        </div>
+        
+        <p id="noChartText" class="text-center text-slate-400 text-xs py-6 hidden">אין הוצאות רשומות בחודש זה</p>
+      </div>
+
       <!-- Recent Transactions Section -->
       <div class="bg-white rounded-3xl p-4 shadow-sm border border-slate-200/80">
         <div class="flex items-center justify-between mb-3.5">
           <h3 class="text-xs font-bold text-slate-800 flex items-center gap-2">
             <i data-lucide="list-filter" class="w-4 h-4 text-indigo-600"></i>
-            תנועות החודש
+            פירוט תנועות החודש
           </h3>
           <span id="txCount" class="text-[11px] font-semibold text-slate-400">0 תנועות</span>
         </div>
 
-        <div id="transactionsList" class="space-y-2.5 max-h-[380px] overflow-y-auto pr-0.5">
+        <div id="transactionsList" class="space-y-2.5 max-h-[300px] overflow-y-auto pr-0.5">
           <p class="text-center text-slate-400 text-xs py-8">טוען נתונים...</p>
         </div>
       </div>
 
     </div>
 
-    <!-- Analytics Tab Content (Hidden by default) -->
+    <!-- Analytics Tab Content -->
     <div id="tabAnalytics" class="hidden space-y-4">
       <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80">
         <h3 class="text-xs font-bold text-slate-800 mb-4 flex items-center gap-2">
-          <i data-lucide="pie-chart" class="w-4 h-4 text-indigo-600"></i>
-          התפלגות הוצאות לפי קטגוריות
+          <i data-lucide="bar-chart-2" class="w-4 h-4 text-indigo-600"></i>
+          ניתוח קטגוריות מורחב
         </h3>
-        <div class="relative h-56 w-full flex justify-center items-center">
-          <canvas id="expensesChart"></canvas>
+        <div class="relative h-60 w-full flex justify-center items-center">
+          <canvas id="expensesChartAnalytics"></canvas>
         </div>
       </div>
     </div>
@@ -268,7 +284,8 @@
     let selectedCategory = 'supermarket';
     let transactions = [];
     let currentDate = new Date();
-    let chartInstance = null;
+    let chartHomeInstance = null;
+    let chartAnalyticsInstance = null;
 
     const monthNames = [
       "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
@@ -495,7 +512,7 @@
       document.getElementById('totalExpenses').innerText = `₪${expenseSum.toLocaleString()}`;
       document.getElementById('netBalance').innerText = `₪${net.toLocaleString()}`;
 
-      renderChart(categoryTotals);
+      renderCharts(categoryTotals);
 
       const listContainer = document.getElementById('transactionsList');
       document.getElementById('txCount').innerText = `${filtered.length} תנועות`;
@@ -558,9 +575,19 @@
       }
     }
 
-    function renderChart(categoryTotals) {
+    function renderCharts(categoryTotals) {
       const keys = Object.keys(categoryTotals);
-      if (keys.length === 0) return;
+      const chartContainer = document.getElementById('chartContainer');
+      const noChartText = document.getElementById('noChartText');
+
+      if (keys.length === 0) {
+        chartContainer.classList.add('hidden');
+        noChartText.classList.remove('hidden');
+        return;
+      }
+
+      chartContainer.classList.remove('hidden');
+      noChartText.classList.add('hidden');
 
       const labels = [];
       const dataValues = [];
@@ -573,13 +600,43 @@
         backgroundColors.push(cat.color);
       });
 
-      const ctx = document.getElementById('expensesChart').getContext('2d');
+      // Render Home Chart
+      const ctxHome = document.getElementById('expensesChartHome').getContext('2d');
+      if (chartHomeInstance) chartHomeInstance.destroy();
 
-      if (chartInstance) {
-        chartInstance.destroy();
-      }
+      chartHomeInstance = new Chart(ctxHome, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: dataValues,
+            backgroundColor: backgroundColors,
+            borderWidth: 2,
+            borderColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                font: { family: 'Rubik', size: 10 },
+                boxWidth: 10,
+                padding: 8
+              }
+            }
+          },
+          cutout: '68%'
+        }
+      });
 
-      chartInstance = new Chart(ctx, {
+      // Render Analytics Chart
+      const ctxAnalytics = document.getElementById('expensesChartAnalytics').getContext('2d');
+      if (chartAnalyticsInstance) chartAnalyticsInstance.destroy();
+
+      chartAnalyticsInstance = new Chart(ctxAnalytics, {
         type: 'doughnut',
         data: {
           labels: labels,
@@ -598,7 +655,7 @@
               position: 'bottom',
               labels: {
                 font: { family: 'Rubik', size: 11 },
-                boxWidth: 10,
+                boxWidth: 12,
                 padding: 12
               }
             }
