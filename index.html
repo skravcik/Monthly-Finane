@@ -21,7 +21,6 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
     body { font-family: 'Rubik', sans-serif; -webkit-tap-highlight-color: transparent; }
-    /* Custom scrollbar for list */
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
   </style>
@@ -40,10 +39,10 @@
           <p class="text-[11px] text-indigo-200 leading-none">מעקב הוצאות והכנסות</p>
         </div>
       </div>
-      <div id="syncStatus" class="flex items-center gap-1.5 text-xs bg-indigo-500/60 text-indigo-100 px-2.5 py-1 rounded-full border border-indigo-400/30">
+      <button onclick="fetchData()" id="syncStatus" class="flex items-center gap-1.5 text-xs bg-indigo-500/60 text-indigo-100 px-2.5 py-1 rounded-full border border-indigo-400/30 hover:bg-indigo-500/80 transition-colors">
         <i data-lucide="refresh-cw" id="syncIcon" class="w-3.5 h-3.5"></i>
         <span id="syncText">מסונכרן</span>
-      </div>
+      </button>
     </div>
   </header>
 
@@ -184,8 +183,8 @@
 
   <script>
     // --- Google Apps Script Web App URL ---
-    // **הדבק כאן את הקישור שקיבלת לאחר פרסום הסקריפט בגוגל דרייב**
-    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwXcmhXbMfDIlex82LYxn_CQKjIIxKJ1n16TaVZI33EByzXjZYm8AOYBZCyYtmsfPVN/exec';
+    // **הדבק כאן את הקישור שקיבלת מ-Google Apps Script**
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyrp0t08S9Bitg8LyxJsepHTxRXfbUXeY9LBxqAcBT_LxbaoOTCwOJl-QZF2Hjg9XO4/exec';
 
     // Categories Configuration
     const categories = [
@@ -203,29 +202,30 @@
     let currentType = 'expense';
     let selectedCategory = 'supermarket';
     let transactions = [];
-    let currentDate = new Date(); // Current viewing month
+    let currentDate = new Date();
     let chartInstance = null;
 
-    // Hebrew Month Names
     const monthNames = [
       "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
       "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"
     ];
 
-    // Initialize Page
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('date').valueAsDate = new Date();
       renderCategories();
       updateMonthDisplay();
       
-      // Load cached data first for instant launch
       const cachedData = localStorage.getItem('family_budget_txs');
       if (cachedData) {
-        transactions = JSON.parse(cachedData);
-        updateUI();
+        try {
+          transactions = JSON.parse(cachedData);
+          updateUI();
+        } catch (e) {
+          console.error(e);
+        }
       }
 
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
       fetchData();
     });
 
@@ -273,7 +273,7 @@
           </button>
         `;
       }).join('');
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
     }
 
     function selectCategory(id) {
@@ -281,13 +281,12 @@
       renderCategories();
     }
 
-    // Form Submit Handler
     document.getElementById('transactionForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> שומר...';
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
 
       const newTx = {
         id: Date.now(),
@@ -298,12 +297,10 @@
         description: document.getElementById('description').value || ''
       };
 
-      // Unshift to local list & Cache
       transactions.unshift(newTx);
       localStorage.setItem('family_budget_txs', JSON.stringify(transactions));
       updateUI();
 
-      // Cloud Sync
       if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
         try {
           await fetch(GOOGLE_SCRIPT_URL, {
@@ -312,17 +309,17 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newTx)
           });
+          setTimeout(fetchData, 1000);
         } catch (err) {
           console.error('Save error:', err);
         }
       }
 
-      // Reset Form Inputs
       document.getElementById('amount').value = '';
       document.getElementById('description').value = '';
       submitBtn.disabled = false;
       submitBtn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> שמור דיווח בענן';
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
     });
 
     async function fetchData() {
@@ -332,21 +329,24 @@
 
       const syncIcon = document.getElementById('syncIcon');
       const syncText = document.getElementById('syncText');
-      syncIcon.classList.add('animate-spin');
-      syncText.innerText = 'מסתנכרן...';
+      if (syncIcon) syncIcon.classList.add('animate-spin');
+      if (syncText) syncText.innerText = 'מסתנכרן...';
 
       try {
-        const res = await fetch(GOOGLE_SCRIPT_URL);
+        const res = await fetch(GOOGLE_SCRIPT_URL + '?t=' + Date.now());
         const data = await res.json();
-        transactions = data;
-        localStorage.setItem('family_budget_txs', JSON.stringify(transactions));
-        updateUI();
-        syncText.innerText = 'מסונכרן';
+        
+        if (Array.isArray(data)) {
+          transactions = data;
+          localStorage.setItem('family_budget_txs', JSON.stringify(transactions));
+          updateUI();
+          if (syncText) syncText.innerText = 'מסונכרן';
+        }
       } catch (e) {
         console.error('Fetch error:', e);
-        syncText.innerText = 'שגיאת סנכרון';
+        if (syncText) syncText.innerText = 'שגיאת סנכרון';
       } finally {
-        syncIcon.classList.remove('animate-spin');
+        if (syncIcon) syncIcon.classList.remove('animate-spin');
       }
     }
 
@@ -354,14 +354,23 @@
       const selectedYear = currentDate.getFullYear();
       const selectedMonth = currentDate.getMonth();
 
-      // Filter transactions for selected month
       const filtered = transactions.filter(tx => {
         if (!tx.date) return false;
-        const parts = tx.date.split('-');
-        if (parts.length < 2) return false;
-        const txYear = parseInt(parts[0]);
-        const txMonth = parseInt(parts[1]) - 1; // 0-indexed
-        return txYear === selectedYear && txMonth === selectedMonth;
+        
+        let d;
+        if (typeof tx.date === 'string') {
+          const parts = tx.date.split('T')[0].split('-');
+          if (parts.length >= 3) {
+            const txYear = parseInt(parts[0], 10);
+            const txMonth = parseInt(parts[1], 10) - 1;
+            return txYear === selectedYear && txMonth === selectedMonth;
+          }
+          d = new Date(tx.date);
+        } else {
+          d = new Date(tx.date);
+        }
+        
+        return !isNaN(d.getTime()) && d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
       });
 
       let incomeSum = 0;
@@ -369,11 +378,12 @@
       const categoryTotals = {};
 
       filtered.forEach(tx => {
+        const amt = parseFloat(tx.amount) || 0;
         if (tx.type === 'income') {
-          incomeSum += tx.amount;
+          incomeSum += amt;
         } else {
-          expenseSum += tx.amount;
-          categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + tx.amount;
+          expenseSum += amt;
+          categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + amt;
         }
       });
 
@@ -383,10 +393,8 @@
       document.getElementById('totalExpenses').innerText = `₪${expenseSum.toLocaleString()}`;
       document.getElementById('netBalance').innerText = `₪${net.toLocaleString()}`;
 
-      // Update Chart
       renderChart(categoryTotals);
 
-      // Render Transaction Items
       const listContainer = document.getElementById('transactionsList');
       document.getElementById('txCount').innerText = `${filtered.length} תנועות`;
 
@@ -398,6 +406,8 @@
       listContainer.innerHTML = filtered.map(tx => {
         const catObj = categories.find(c => c.id === tx.category) || categories[categories.length - 1];
         const isIncome = tx.type === 'income';
+        const displayAmount = (parseFloat(tx.amount) || 0).toLocaleString();
+        const displayDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : tx.date;
 
         return `
           <div class="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-100/50 transition-colors">
@@ -407,17 +417,17 @@
               </div>
               <div>
                 <p class="text-xs sm:text-sm font-bold text-slate-800">${catObj.name}</p>
-                <p class="text-[11px] text-slate-400">${tx.date} ${tx.description ? '• ' + tx.description : ''}</p>
+                <p class="text-[11px] text-slate-400">${displayDate} ${tx.description ? '• ' + tx.description : ''}</p>
               </div>
             </div>
             <span class="text-xs sm:text-sm font-bold ${isIncome ? 'text-emerald-600' : 'text-rose-600'}">
-              ${isIncome ? '+' : '-'}₪${tx.amount.toLocaleString()}
+              ${isIncome ? '+' : '-'}₪${displayAmount}
             </span>
           </div>
         `;
       }).join('');
 
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
     }
 
     function renderChart(categoryTotals) {
