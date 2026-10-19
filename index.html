@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="תזרים משפחתי" />
   <meta name="theme-color" content="#0F1B2D" />
+  <script>try{var t=localStorage.getItem("fb_theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
   <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2845/2845831.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,8 +20,11 @@
   <style>
     :root{--bg:#EEF1F4;--surface:#fff;--ink:#0F1B2D;--muted:#5B6878;--line:#E1E6EC;--brand:#0B6E6E;--on-brand:#fff;
       --pos:#12805A;--neg:#C93C34;--hero:#0F1B2D;--hero-ink:#F3F6F9;--hero-muted:#9FB0C3;--track:#2A3A50;--save:#F0C75E}
-    @media (prefers-color-scheme:dark){:root{--bg:#0B1115;--surface:#141D24;--ink:#E7EDF2;--muted:#93A1AF;--line:#22303A;
+    :root{color-scheme:light}
+    @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#0B1115;--surface:#141D24;--ink:#E7EDF2;--muted:#93A1AF;--line:#22303A;
       --brand:#2BB3A8;--on-brand:#06201E;--pos:#3DD6A0;--neg:#FF7A70;--hero:#1B2A35;--track:#2E4251}}
+    :root[data-theme="dark"]{color-scheme:dark;--bg:#0B1115;--surface:#141D24;--ink:#E7EDF2;--muted:#93A1AF;--line:#22303A;
+      --brand:#2BB3A8;--on-brand:#06201E;--pos:#3DD6A0;--neg:#FF7A70;--hero:#1B2A35;--track:#2E4251}
     body{font-family:'Heebo',system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-tap-highlight-color:transparent}
     .serif{font-family:'Frank Ruhl Libre',Georgia,serif}
     .num{unicode-bidi:isolate;direction:ltr;display:inline-block}
@@ -76,9 +80,12 @@
   <header class="sticky top-0 z-30">
     <div class="max-w-md mx-auto px-5 py-3 flex items-center justify-between">
       <h1 class="serif text-xl font-black">תזרים משפחתי</h1>
-      <button onclick="fetchData()" class="pill" aria-label="סנכרן">
-        <i data-lucide="refresh-cw" id="syncIcon" class="w-3.5 h-3.5"></i><span id="syncText">רענן</span>
-      </button>
+      <div class="flex items-center gap-2">
+        <button id="themeBtn" onclick="toggleTheme()" class="pill" aria-label="החלף בין מצב כהה לבהיר"></button>
+        <button onclick="fetchData()" class="pill" aria-label="סנכרן">
+          <i data-lucide="refresh-cw" id="syncIcon" class="w-3.5 h-3.5"></i><span id="syncText">רענן</span>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -519,11 +526,29 @@
     });
 
     window.addEventListener('online', fetchData);
-    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+    // ---------- מצב כהה / בהיר ----------
+    const THEME_KEY = 'fb_theme';
+    const currentTheme = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    function setThemeIcon() {
+      const dark = currentTheme() === 'dark';
+      $('themeBtn').innerHTML = `<i data-lucide="${dark ? 'sun' : 'moon'}" class="w-4 h-4"></i>`;
+      document.querySelector('meta[name="theme-color"]').content = dark ? '#0B1115' : '#0F1B2D';
+      lucide.createIcons();
+    }
+    function toggleTheme() {
+      const t = currentTheme() === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = t;
+      try { localStorage.setItem(THEME_KEY, t); } catch {}
+      setThemeIcon(); render();
+    }
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (!localStorage.getItem(THEME_KEY)) { setThemeIcon(); render(); }
+    });
 
     document.addEventListener('DOMContentLoaded', () => {
       $('date').value = ymd(new Date());
       setType('expense');
+      setThemeIcon();
       generate();
       render();
       syncIdle();
