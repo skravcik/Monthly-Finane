@@ -53,7 +53,7 @@
     nav{padding-bottom:env(safe-area-inset-bottom);background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
     .nav a,.nav button.n{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--muted)}
     .nav .on{color:var(--brand)}
-    .fab{width:56px;height:56px;border-radius:50%;background:var(--brand);color:var(--on-brand);display:flex;align-items:center;justify-content:center;margin-top:-26px;box-shadow:0 8px 20px -6px var(--brand);border:4px solid var(--bg)}
+    .fab{width:56px;height:56px;border-radius:50%;background:var(--brand);color:var(--on-brand);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px -6px var(--brand);border:4px solid var(--bg)}
     .sheet{background:var(--surface);border-radius:28px 28px 0 0;transition:transform .3s cubic-bezier(.16,1,.3,1);padding:20px 20px calc(20px + env(safe-area-inset-bottom))}
     .sheet.closed{transform:translateY(100%)}
     .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:16px;background:var(--bg)}
@@ -65,6 +65,8 @@
     .chip{padding:10px 4px;border-radius:14px;border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;color:var(--muted);text-align:center;line-height:1.2}
     .chip.sel{border-color:var(--brand);color:var(--ink);font-weight:700;background:color-mix(in srgb,var(--brand) 12%,transparent)}
     .save{width:100%;padding:15px;border-radius:16px;background:var(--brand);color:var(--on-brand);font-weight:700;font-size:15px}
+    .rep{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--bg);font-size:14px}
+    .rep input{width:18px;height:18px;accent-color:var(--brand)}
     ::-webkit-scrollbar{width:0}
     @media (prefers-reduced-motion:reduce){*{transition:none!important}}
   </style>
@@ -124,13 +126,21 @@
         <div id="breakdown" class="space-y-4"></div>
       </div>
     </div>
+    <div id="tabRecurring" class="hidden">
+      <div class="panel">
+        <h3 class="h3 mb-1">תנועות קבועות</h3>
+        <p class="text-xs muted mb-3">נרשמות לבד בכל חודש בתאריך שנקבע. כדי להוסיף: הוסף תנועה וסמן "חוזרת כל חודש".</p>
+        <div id="recList"></div>
+      </div>
+    </div>
   </main>
 
   <nav class="nav fixed bottom-0 left-0 right-0 z-20">
-    <div class="max-w-md mx-auto px-10 pt-2 pb-1 flex items-center justify-between">
+    <div class="max-w-md mx-auto px-6 pt-2 pb-1 grid grid-cols-3 relative">
       <button onclick="switchTab('dashboard')" id="navHome" class="n on"><i data-lucide="home" class="w-5 h-5"></i>ראשי</button>
-      <button onclick="openModal()" class="fab" aria-label="הוסף תנועה"><i data-lucide="plus" class="w-6 h-6"></i></button>
+      <button onclick="switchTab('recurring')" id="navRec" class="n"><i data-lucide="repeat" class="w-5 h-5"></i>קבועות</button>
       <button onclick="switchTab('analytics')" id="navAnalytics" class="n"><i data-lucide="bar-chart-2" class="w-5 h-5"></i>דוחות</button>
+      <button onclick="openModal()" class="fab absolute left-5 -top-[72px]" aria-label="הוסף תנועה"><i data-lucide="plus" class="w-6 h-6"></i></button>
     </div>
   </nav>
 
@@ -156,6 +166,7 @@
       <div><span class="lab">קטגוריה</span><div id="categoryGrid" class="grid grid-cols-4 gap-2"></div></div>
       <div><label for="description" class="lab">תיאור</label>
         <input type="text" id="description" class="field" maxlength="200" placeholder="למשל: סופר, דלק..." /></div>
+      <label class="rep"><input type="checkbox" id="repeat" /><span>חוזרת כל חודש באותו תאריך</span></label>
       <button type="submit" class="save">שמור תנועה</button>
     </form>
   </div>
@@ -163,7 +174,7 @@
   <script>
     // הדבק כאן את כתובת ה-Web App שלך (מתחילה ב-https://script.google.com/macros/s/ ונגמרת ב-/exec)
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyo2Mz7aIv_egQOxhwwdzZE6eifGYNoPHPTUCm1Uvp7CS5pPwmnfROL3ku7pxU04Vte/exec';
-    const LS = { tx: 'fb_txs', queue: 'fb_queue', token: 'budget_token' };
+    const LS = { tx: 'fb_txs', queue: 'fb_queue', token: 'budget_token', rec: 'fb_rec' };
 
     const categories = [
       { id: 'supermarket', name: 'סופרמרקט', icon: 'shopping-cart', color: '#2F9E78', t: 'e' },
@@ -198,10 +209,11 @@
 
     let txs = load(LS.tx, []);
     let queue = load(LS.queue, []);
+    let recs = load(LS.rec, []);
     let view = { y: new Date().getFullYear(), m: new Date().getMonth() };
     let type = 'expense', cat = 'supermarket', chart = null, flushing = false;
     const ready = () => SCRIPT_URL.startsWith('https://');
-    const persist = () => { store(LS.tx, txs); store(LS.queue, queue); };
+    const persist = () => { store(LS.tx, txs); store(LS.queue, queue); store(LS.rec, recs); };
 
     // ---------- סנכרון ----------
     function getToken() {
@@ -242,7 +254,20 @@
       let out = list.slice();
       for (const op of queue) {
         if (op.action === 'delete') out = out.filter(t => String(t.id) !== String(op.id));
-        else if (!out.some(t => String(t.id) === String(op.tx.id))) out.unshift(op.tx);
+        else if (op.action === 'add' && !out.some(t => String(t.id) === String(op.tx.id))) out.unshift(op.tx);
+      }
+      return out;
+    }
+
+    function applyQueueRec(list) {
+      let out = list.map(x => ({ ...x }));
+      for (const op of queue) {
+        if (op.action === 'delRec') out = out.filter(r => String(r.id) !== String(op.id));
+        else if (op.action === 'addRec' && !out.some(r => String(r.id) === String(op.rec.id))) out.push({ ...op.rec });
+        else if (op.action === 'recGen') {
+          const r = out.find(r => String(r.id) === String(op.id));
+          if (r && op.lastGen > (r.lastGen || '')) r.lastGen = op.lastGen;
+        }
       }
       return out;
     }
@@ -263,8 +288,37 @@
         const d = await r.json();
         if (d && d.status === 'unauthorized') { localStorage.removeItem(LS.token); return setSync('auth'); }
         if (!Array.isArray(d)) throw new Error('bad response');
-        txs = applyQueue(d); persist(); render(); syncIdle();
+        txs = applyQueue(d);
+        try {
+          const r2 = await fetch(`${SCRIPT_URL}?kind=rec&token=${encodeURIComponent(getToken())}&t=${Date.now()}`);
+          const d2 = await r2.json();
+          if (Array.isArray(d2) && d2.every(x => x && x.day !== undefined)) recs = applyQueueRec(d2);
+        } catch (e) { console.error(e); }
+        generate(); persist(); render(); syncIdle();
+        if (queue.length) flush().then(syncIdle);
       } catch (e) { console.error(e); setSync('error'); }
+    }
+
+    // רושם תנועות קבועות שהגיע זמנן (מזהה קבוע לכל חודש – אין כפילויות בין מכשירים)
+    function generate() {
+      const today = ymd(new Date()), curKey = today.slice(0, 7);
+      recs.forEach(r => {
+        let [y, m] = String(r.lastGen || '').split('-').map(Number);
+        if (!y) return;
+        let key = r.lastGen;
+        while (true) {
+          m++; if (m > 12) { m = 1; y++; }
+          const k = `${y}-${pad(m)}`;
+          if (k > curKey) break;
+          const date = `${k}-${pad(Math.min(r.day, new Date(y, m, 0).getDate()))}`;
+          if (date > today) break;
+          const tx = { id: `r_${r.id}_${k}`, date, type: r.type, amount: r.amount, category: r.category, description: r.description };
+          if (!txs.some(t => String(t.id) === tx.id)) { txs.unshift(tx); queue.push({ action: 'add', tx }); }
+          key = k;
+        }
+        if (key !== r.lastGen) { r.lastGen = key; queue.push({ action: 'recGen', id: r.id, lastGen: key }); }
+      });
+      persist();
     }
 
     // ---------- חישובים ----------
@@ -322,7 +376,23 @@
           </div>`;
       });
       $('transactionsList').innerHTML = html || '<p class="text-center muted text-sm py-8">עוד אין תנועות בחודש הזה. הוסף את הראשונה בכפתור +</p>';
+      renderRecs();
       lucide.createIcons();
+    }
+
+    function renderRecs() {
+      $('recList').innerHTML = recs.length ? recs.map(r => {
+        const c = catOf(r.category), inc = r.type === 'income';
+        return `
+          <div class="row">
+            <span class="ico" style="background:${c.color}22;color:${c.color}"><i data-lucide="${c.icon}" class="w-4 h-4"></i></span>
+            <div class="min-w-0 flex-1">
+              <p class="t1">${esc(r.description) || c.name}</p><p class="t2">ב-${r.day} בכל חודש · ${c.name}</p>
+            </div>
+            <span class="num amt ${inc ? 'pos' : ''}">${inc ? '+' : '−'}${money(Math.round(r.amount * 100))}</span>
+            <button data-delrec="${esc(r.id)}" aria-label="הסר" class="del"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+          </div>`;
+      }).join('') : '<p class="text-center muted text-sm py-8">עוד אין תנועות קבועות</p>';
     }
 
     function drawChart(rows) {
@@ -365,11 +435,10 @@
     }
 
     function switchTab(tab) {
-      const dash = tab === 'dashboard';
-      $('tabDashboard').classList.toggle('hidden', !dash);
-      $('tabAnalytics').classList.toggle('hidden', dash);
-      $('navHome').className = 'n' + (dash ? ' on' : '');
-      $('navAnalytics').className = 'n' + (dash ? '' : ' on');
+      [['Dashboard', 'dashboard', 'Home'], ['Recurring', 'recurring', 'Rec'], ['Analytics', 'analytics', 'Analytics']].forEach(([id, t, nv]) => {
+        $('tab' + id).classList.toggle('hidden', t !== tab);
+        $('nav' + nv).className = 'n' + (t === tab ? ' on' : '');
+      });
     }
 
     // ---------- חלון הוספה ----------
@@ -415,6 +484,11 @@
       const tx = { id: newId(), date: $('date').value, type, amount, category: cat, description: $('description').value.trim() };
       txs.unshift(tx);
       queue.push({ action: 'add', tx });
+      if ($('repeat').checked) {
+        const rec = { id: newId(), type, amount, category: cat, description: tx.description, day: +tx.date.slice(8, 10), lastGen: tx.date.slice(0, 7) };
+        recs.push(rec); queue.push({ action: 'addRec', rec });
+        $('repeat').checked = false;
+      }
       persist();
       const [y, m] = tx.date.split('-').map(Number);
       view = { y, m: m - 1 };
@@ -434,12 +508,23 @@
       flush().then(syncIdle);
     });
 
+    $('recList').addEventListener('click', e => {
+      const b = e.target.closest('[data-delrec]');
+      if (!b || !confirm('להפסיק את התנועה הקבועה? תנועות שכבר נרשמו יישארו.')) return;
+      const id = b.dataset.delrec;
+      recs = recs.filter(r => String(r.id) !== id);
+      queue.push({ action: 'delRec', id });
+      persist(); render(); setSync('pending');
+      flush().then(syncIdle);
+    });
+
     window.addEventListener('online', fetchData);
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
 
     document.addEventListener('DOMContentLoaded', () => {
       $('date').value = ymd(new Date());
       setType('expense');
+      generate();
       render();
       syncIdle();
       fetchData();
